@@ -1,46 +1,97 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:http/http.dart' as http;
 import '../app_colors.dart';
+import 'active_walk_tracker_page.dart';
 import '../widgets/logout_button.dart';
 
 /// Nature Spot Finder Page
 /// Shows nearby green spaces/parks pulled from OpenTripMap based on GPS.
-/// UI only — static placeholder data, no API/GPS wiring yet.
-class NatureSpotFinderPage extends StatelessWidget {
+class NatureSpotFinderPage extends StatefulWidget {
   const NatureSpotFinderPage({super.key});
 
-  // Placeholder data representing what the API fetcher would return.
-  static const List<_NatureSpot> _placeholderSpots = [
-    _NatureSpot(
-      name: 'Lumphini Park',
-      type: 'Public Park',
-      distance: '0.8 km',
-      icon: Icons.park,
-    ),
-    _NatureSpot(
-      name: 'Benjakitti Forest Park',
-      type: 'Urban Forest',
-      distance: '1.4 km',
-      icon: Icons.forest,
-    ),
-    _NatureSpot(
-      name: 'Chao Phraya Riverside Walk',
-      type: 'Riverside Path',
-      distance: '2.1 km',
-      icon: Icons.water,
-    ),
-    _NatureSpot(
-      name: 'Rot Fai Park',
-      type: 'Botanical Garden',
-      distance: '3.6 km',
-      icon: Icons.local_florist,
-    ),
-    _NatureSpot(
-      name: 'Chulalongkorn Centenary Park',
-      type: 'Green Rooftop',
-      distance: '4.2 km',
-      icon: Icons.eco,
-    ),
-  ];
+  @override
+  State<NatureSpotFinderPage> createState() => _NatureSpotFinderPageState();
+}
+
+class _NatureSpotFinderPageState extends State<NatureSpotFinderPage> {
+  // Replace with your actual OpenTripMap API Key
+  static const String _apiKey = '5ae2e3f221c38a28845f05b6c401b2d9c4a19067ebfc45e74323a0c2';
+
+  List<_NatureSpot> _spots = [];
+  bool _isLoading = false;
+  String? _errorMessage;
+
+  @override
+  void initState() {
+    super.initState();
+    _fetchNearbySpots();
+  }
+
+  Future<void> _fetchNearbySpots() async {
+    setState(() {
+      _isLoading = true;
+      _errorMessage = null;
+    });
+
+    try {
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        throw Exception('Location services are disabled on your device.');
+      }
+
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          throw Exception('Location permissions were denied.');
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        throw Exception('Location permissions are permanently denied.');
+      }
+
+      Position position = await Geolocator.getCurrentPosition(
+        desiredAccuracy: LocationAccuracy.high,
+      );
+
+      final url = Uri.parse(
+        'https://api.opentripmap.com/0.1/en/places/radius?radius=5000&lon=${position.longitude}&lat=${position.latitude}&kinds=natural,parks&format=json&apikey=$_apiKey',
+      );
+
+      final response = await http.get(url);
+
+      if (response.statusCode == 200) {
+        final List<dynamic> data = json.decode(response.body);
+        final fetchedSpots = data
+            .where((item) => item['name'] != null && item['name'].toString().trim().isNotEmpty)
+            .map((item) {
+          final double distMeters = (item['dist'] as num?)?.toDouble() ?? 0.0;
+          final String distKm = (distMeters / 1000).toStringAsFixed(1);
+          return _NatureSpot(
+            name: item['name'] ?? 'Green Space',
+            type: 'Park & Nature',
+            distance: '$distKm km',
+            icon: Icons.park,
+          );
+        }).toList();
+
+        setState(() {
+          _spots = fetchedSpots;
+          _isLoading = false;
+        });
+      } else {
+        throw Exception('Failed to fetch nature spots from API.');
+      }
+    } catch (e) {
+      setState(() {
+        _errorMessage = e.toString().replaceAll('Exception: ', '');
+        _isLoading = false;
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,8 +101,8 @@ class NatureSpotFinderPage extends StatelessWidget {
         title: const Text('Nature Spots Nearby'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.tune, color: AppColors.forest),
-            onPressed: () {},
+            icon: const Icon(Icons.refresh, color: AppColors.forest),
+            onPressed: _fetchNearbySpots,
           ),
           const LogoutButton(),
         ],
@@ -60,14 +111,34 @@ class NatureSpotFinderPage extends StatelessWidget {
         children: [
           _buildLocationBanner(),
           Expanded(
-            child: ListView.separated(
-              padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-              itemCount: _placeholderSpots.length,
-              separatorBuilder: (_, __) => const SizedBox(height: 14),
-              itemBuilder: (context, index) {
-                return _SpotCard(spot: _placeholderSpots[index]);
-              },
-            ),
+            child: _isLoading
+                ? const Center(child: CircularProgressIndicator(color: AppColors.forest))
+                : _errorMessage != null
+                    ? Center(
+                        child: Padding(
+                          padding: const EdgeInsets.all(20.0),
+                          child: Text(
+                            _errorMessage!,
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: AppColors.textSecondary),
+                          ),
+                        ),
+                      )
+                    : _spots.isEmpty
+                        ? const Center(
+                            child: Text(
+                              'No nature spots found nearby.',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          )
+                        : ListView.separated(
+                            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                            itemCount: _spots.length,
+                            separatorBuilder: (_, __) => const SizedBox(height: 14),
+                            itemBuilder: (context, index) {
+                              return _SpotCard(spot: _spots[index]);
+                            },
+                          ),
           ),
         ],
       ),
@@ -97,7 +168,7 @@ class NatureSpotFinderPage extends StatelessWidget {
             ),
           ),
           TextButton(
-            onPressed: () {},
+            onPressed: _fetchNearbySpots,
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
               minimumSize: const Size(0, 0),
@@ -192,7 +263,14 @@ class _SpotCard extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             ElevatedButton(
-              onPressed: () {},
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => ActiveWalkTrackerPage(spotName: spot.name),
+                  ),
+                );
+              },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
               ),

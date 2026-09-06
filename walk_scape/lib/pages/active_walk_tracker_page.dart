@@ -1,22 +1,143 @@
+import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../app_colors.dart';
 import '../widgets/logout_button.dart';
 
 /// Active Walk Tracker Page
-/// Shown while the user is actively on a mindful walk.
-/// UI only — static placeholder values, no real GPS/camera wiring yet.
-class ActiveWalkTrackerPage extends StatelessWidget {
-  const ActiveWalkTrackerPage({super.key});
+/// Tracks live duration, GPS distance, camera photos, and saves session to Firestore.
+class ActiveWalkTrackerPage extends StatefulWidget {
+  final String spotName;
+
+  const ActiveWalkTrackerPage({super.key, this.spotName = 'Mindful Walk'});
+
+  @override
+  State<ActiveWalkTrackerPage> createState() => _ActiveWalkTrackerPageState();
+}
+
+class _ActiveWalkTrackerPageState extends State<ActiveWalkTrackerPage> {
+  Timer? _timer;
+  int _secondsElapsed = 0;
+  bool _isPaused = false;
+
+  double _totalDistanceMeters = 0.0;
+  Position? _lastPosition;
+  StreamSubscription<Position>? _positionStream;
+
+  final List<String> _capturedPhotoPaths = [];
+  final ImagePicker _picker = ImagePicker();
+  bool _isSaving = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _startTimer();
+    _startGpsTracking();
+  }
+
+  void _startTimer() {
+    _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      if (!_isPaused) {
+        setState(() => _secondsElapsed++);
+      }
+    });
+  }
+
+  void _startGpsTracking() {
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 3,
+      ),
+    ).listen((Position position) {
+      if (!_isPaused) {
+        if (_lastPosition != null) {
+          double dist = Geolocator.distanceBetween(
+            _lastPosition!.latitude,
+            _lastPosition!.longitude,
+            position.latitude,
+            position.longitude,
+          );
+          setState(() => _totalDistanceMeters += dist);
+        }
+        _lastPosition = position;
+      }
+    });
+  }
+
+  void _togglePause() {
+    setState(() => _isPaused = !_isPaused);
+  }
+
+  Future<void> _openCamera() async {
+    final XFile? photo = await _picker.pickImage(source: ImageSource.camera);
+    if (photo != null) {
+      setState(() {
+        _capturedPhotoPaths.add(photo.path);
+      });
+    }
+  }
+
+  Future<void> _endWalkAndSave() async {
+    setState(() => _isSaving = true);
+    try {
+      final user = FirebaseAuth.instance.currentUser;
+      if (user != null) {
+        await FirebaseFirestore.instance.collection('walk_logs').add({
+          'userId': user.uid,
+          'location': widget.spotName,
+          'durationSeconds': _secondsElapsed,
+          'distanceMeters': _totalDistanceMeters,
+          'photoPaths': _capturedPhotoPaths,
+          'timestamp': FieldValue.serverTimestamp(),
+        });
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Walk saved to Mindfulness Journal!')),
+        );
+        Navigator.pop(context);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error saving walk: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _positionStream?.cancel();
+    super.dispose();
+  }
+
+  String _formatDuration(int totalSeconds) {
+    final mins = (totalSeconds ~/ 60).toString().padLeft(2, '0');
+    final secs = (totalSeconds % 60).toString().padLeft(2, '0');
+    return '$mins:$secs';
+  }
 
   @override
   Widget build(BuildContext context) {
+    final double distKm = _totalDistanceMeters / 1000;
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Active Walk'),
+        title: Text('Active Walk - ${widget.spotName}'),
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: AppColors.forest),
-          onPressed: () {},
+          onPressed: () => Navigator.pop(context),
         ),
         actions: const [LogoutButton()],
       ),
@@ -28,7 +149,7 @@ class ActiveWalkTrackerPage extends StatelessWidget {
               const SizedBox(height: 8),
               _buildMapPlaceholder(),
               const SizedBox(height: 20),
-              _buildStatsRow(),
+              _buildStatsRow(_formatDuration(_secondsElapsed), '${distKm.toStringAsFixed(2)} km', '${_capturedPhotoPaths.length}'),
               const SizedBox(height: 20),
               _buildMindfulnessPrompt(context),
               const Spacer(),
@@ -52,8 +173,21 @@ class ActiveWalkTrackerPage extends StatelessWidget {
       child: Stack(
         alignment: Alignment.center,
         children: [
-          Icon(Icons.map_outlined,
-              size: 64, color: AppColors.forest.withOpacity(0.35)),
+          _capturedPhotoPaths.isNotEmpty && File(_capturedPhotoPaths.last).existsSync()
+              ? ClipRRect(
+                  borderRadius: BorderRadius.circular(20),
+                  child: Image.file(
+                    File(_capturedPhotoPaths.last),
+                    width: double.infinity,
+                    height: 220,
+                    fit: BoxFit.cover,
+                  ),
+                )
+              : Icon(
+                  Icons.map_outlined,
+                  size: 64,
+                  color: AppColors.forest.withOpacity(0.35),
+                ),
           Positioned(
             bottom: 14,
             right: 14,
@@ -63,44 +197,43 @@ class ActiveWalkTrackerPage extends StatelessWidget {
                 color: AppColors.white,
                 borderRadius: BorderRadius.circular(10),
               ),
-              child: const Icon(Icons.gps_fixed,
-                  size: 18, color: AppColors.leaf),
+              child: const Icon(Icons.gps_fixed, size: 18, color: AppColors.leaf),
             ),
           ),
-          const Positioned(
+          Positioned(
             top: 14,
             left: 14,
-            child: _LiveBadge(),
+            child: _LiveBadge(isPaused: _isPaused),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildStatsRow() {
+  Widget _buildStatsRow(String durationText, String distanceText, String checkpointText) {
     return Row(
-      children: const [
+      children: [
         Expanded(
           child: _StatCard(
             icon: Icons.timer_outlined,
             label: 'Duration',
-            value: '12:47',
+            value: durationText,
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
             icon: Icons.directions_walk,
             label: 'Distance',
-            value: '0.94 km',
+            value: distanceText,
           ),
         ),
-        SizedBox(width: 12),
+        const SizedBox(width: 12),
         Expanded(
           child: _StatCard(
             icon: Icons.self_improvement,
             label: 'Checkpoints',
-            value: '2',
+            value: checkpointText,
           ),
         ),
       ],
@@ -119,8 +252,8 @@ class ActiveWalkTrackerPage extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: const [
+          const Row(
+            children: [
               Icon(Icons.spa, color: AppColors.forest),
               SizedBox(width: 10),
               Text(
@@ -142,9 +275,9 @@ class ActiveWalkTrackerPage extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton.icon(
-              onPressed: () {},
+              onPressed: _openCamera,
               icon: const Icon(Icons.camera_alt_outlined),
-              label: const Text('Open Camera'),
+              label: Text(_capturedPhotoPaths.isEmpty ? 'Open Camera' : 'Snap Another Photo (${_capturedPhotoPaths.length})'),
             ),
           ),
         ],
@@ -157,19 +290,21 @@ class ActiveWalkTrackerPage extends StatelessWidget {
       children: [
         Expanded(
           child: OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.pause),
-            label: const Text('Pause'),
+            onPressed: _togglePause,
+            icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+            label: Text(_isPaused ? 'Resume' : 'Pause'),
           ),
         ),
         const SizedBox(width: 12),
         Expanded(
           child: ElevatedButton.icon(
-            onPressed: () {},
+            onPressed: _isSaving ? null : _endWalkAndSave,
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.forest,
             ),
-            icon: const Icon(Icons.flag_outlined),
+            icon: _isSaving
+                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                : const Icon(Icons.flag_outlined),
             label: const Text('End Walk'),
           ),
         ),
@@ -179,7 +314,8 @@ class ActiveWalkTrackerPage extends StatelessWidget {
 }
 
 class _LiveBadge extends StatelessWidget {
-  const _LiveBadge();
+  final bool isPaused;
+  const _LiveBadge({this.isPaused = false});
 
   @override
   Widget build(BuildContext context) {
@@ -189,14 +325,14 @@ class _LiveBadge extends StatelessWidget {
         color: AppColors.forest,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: const Row(
+      child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.circle, size: 8, color: Colors.redAccent),
-          SizedBox(width: 6),
+          Icon(Icons.circle, size: 8, color: isPaused ? Colors.amber : Colors.redAccent),
+          const SizedBox(width: 6),
           Text(
-            'LIVE',
-            style: TextStyle(
+            isPaused ? 'PAUSED' : 'LIVE',
+            style: const TextStyle(
               color: Colors.white,
               fontSize: 11,
               fontWeight: FontWeight.w700,
