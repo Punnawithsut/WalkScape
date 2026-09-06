@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../app_colors.dart';
 import '../pages/nature_spot_finder_page.dart';
 import '../pages/active_walk_tracker_page.dart';
 import '../pages/mindfulness_journal_page.dart';
