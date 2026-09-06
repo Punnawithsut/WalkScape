@@ -1,71 +1,128 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import '../app_colors.dart';
 
 /// Mindfulness Journal Page
-/// Shows the user's walk history and mindfulness-checkpoint photo gallery,
-/// pulled from Firebase Cloud Firestore. UI only — static placeholder data.
+/// Shows walk history & photo gallery streamed live from Firebase Cloud Firestore.
 class MindfulnessJournalPage extends StatelessWidget {
   const MindfulnessJournalPage({super.key});
 
-  static const List<_JournalEntry> _placeholderEntries = [
-    _JournalEntry(
-      date: 'Sep 3, 2026',
-      location: 'Lumphini Park',
-      duration: '24 min',
-      photoCount: 3,
-    ),
-    _JournalEntry(
-      date: 'Sep 1, 2026',
-      location: 'Benjakitti Forest Park',
-      duration: '31 min',
-      photoCount: 5,
-    ),
-    _JournalEntry(
-      date: 'Aug 28, 2026',
-      location: 'Chao Phraya Riverside Walk',
-      duration: '18 min',
-      photoCount: 2,
-    ),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 2,
-      child: Scaffold(
+    final user = FirebaseAuth.instance.currentUser;
+
+    if (user == null) {
+      return Scaffold(
         backgroundColor: AppColors.background,
-        appBar: AppBar(
-          title: const Text('Mindfulness Journal'),
-          actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: AppColors.forest),
-              onPressed: () {},
+        appBar: AppBar(title: const Text('Mindfulness Journal')),
+        body: const Center(
+          child: Text('Please log in to view your journal history.'),
+        ),
+      );
+    }
+
+    return StreamBuilder<QuerySnapshot>(
+      stream: FirebaseFirestore.instance
+          .collection('walk_logs')
+          .where('userId', isEqualTo: user.uid)
+          .snapshots(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(title: const Text('Mindfulness Journal')),
+            body: const Center(child: CircularProgressIndicator(color: AppColors.forest)),
+          );
+        }
+
+        final docs = snapshot.data?.docs ?? [];
+        final entries = docs.map((doc) {
+          final data = doc.data() as Map<String, dynamic>;
+          final int seconds = data['durationSeconds'] ?? 0;
+          final int photosCount = (data['photoPaths'] as List?)?.length ?? 0;
+          final List<String> photos = List<String>.from(data['photoPaths'] ?? []);
+
+          final DateTime date = (data['timestamp'] as Timestamp?)?.toDate() ?? DateTime.now();
+          final String formattedDate = '${_getMonthAbbr(date.month)} ${date.day}, ${date.year}';
+
+          return _JournalEntry(
+            date: formattedDate,
+            location: data['location'] ?? 'Mindful Walk',
+            duration: '${seconds ~/ 60} min',
+            durationSeconds: seconds,
+            photoCount: photosCount,
+            photoPaths: photos,
+          );
+        }).toList();
+
+        final int totalWalks = entries.length;
+        final int totalTimeSeconds = entries.fold(0, (sum, item) => sum + item.durationSeconds);
+        final int totalPhotos = entries.fold(0, (sum, item) => sum + item.photoCount);
+
+        final String totalTimeStr = '${totalTimeSeconds ~/ 3600}h ${(totalTimeSeconds % 3600) ~/ 60}m';
+
+        final List<String> allPhotos = entries.expand((e) => e.photoPaths).toList();
+
+        return DefaultTabController(
+          length: 2,
+          child: Scaffold(
+            backgroundColor: AppColors.background,
+            appBar: AppBar(
+              title: const Text('Mindfulness Journal'),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.logout, color: AppColors.forest),
+                  onPressed: () => FirebaseAuth.instance.signOut(),
+                ),
+              ],
+              bottom: const TabBar(
+                labelColor: AppColors.forest,
+                unselectedLabelColor: AppColors.textSecondary,
+                indicatorColor: AppColors.leaf,
+                indicatorWeight: 3,
+                tabs: [
+                  Tab(text: 'Walk History'),
+                  Tab(text: 'Photo Gallery'),
+                ],
+              ),
             ),
-          ],
-          bottom: const TabBar(
-            labelColor: AppColors.forest,
-            unselectedLabelColor: AppColors.textSecondary,
-            indicatorColor: AppColors.leaf,
-            indicatorWeight: 3,
-            tabs: [
-              Tab(text: 'Walk History'),
-              Tab(text: 'Photo Gallery'),
-            ],
+            body: TabBarView(
+              children: [
+                _WalkHistoryTab(
+                  entries: entries,
+                  totalWalks: '$totalWalks',
+                  totalTime: totalTimeStr,
+                  totalPhotos: '$totalPhotos',
+                ),
+                _PhotoGalleryTab(photoPaths: allPhotos),
+              ],
+            ),
           ),
-        ),
-        body: const TabBarView(
-          children: [
-            _WalkHistoryTab(),
-            _PhotoGalleryTab(),
-          ],
-        ),
-      ),
+        );
+      },
     );
+  }
+
+  static String _getMonthAbbr(int month) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return months[month - 1];
   }
 }
 
 class _WalkHistoryTab extends StatelessWidget {
-  const _WalkHistoryTab();
+  final List<_JournalEntry> entries;
+  final String totalWalks;
+  final String totalTime;
+  final String totalPhotos;
+
+  const _WalkHistoryTab({
+    required this.entries,
+    required this.totalWalks,
+    required this.totalTime,
+    required this.totalPhotos,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -73,16 +130,21 @@ class _WalkHistoryTab extends StatelessWidget {
       children: [
         _buildSummaryStrip(),
         Expanded(
-          child: ListView.separated(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            itemCount: MindfulnessJournalPage._placeholderEntries.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              return _JournalCard(
-                entry: MindfulnessJournalPage._placeholderEntries[index],
-              );
-            },
-          ),
+          child: entries.isEmpty
+              ? const Center(
+                  child: Text(
+                    'No walks logged yet. Start walking!',
+                    style: TextStyle(color: AppColors.textSecondary),
+                  ),
+                )
+              : ListView.separated(
+                  padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
+                  itemCount: entries.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 12),
+                  itemBuilder: (context, index) {
+                    return _JournalCard(entry: entries[index]);
+                  },
+                ),
         ),
       ],
     );
@@ -96,18 +158,18 @@ class _WalkHistoryTab extends StatelessWidget {
         color: AppColors.leaf,
         borderRadius: BorderRadius.circular(18),
       ),
-      child: const Row(
+      child: Row(
         children: [
           Expanded(
-            child: _SummaryItem(label: 'Total Walks', value: '12'),
+            child: _SummaryItem(label: 'Total Walks', value: totalWalks),
           ),
-          _VerticalDivider(),
+          const _VerticalDivider(),
           Expanded(
-            child: _SummaryItem(label: 'Total Time', value: '4h 52m'),
+            child: _SummaryItem(label: 'Total Time', value: totalTime),
           ),
-          _VerticalDivider(),
+          const _VerticalDivider(),
           Expanded(
-            child: _SummaryItem(label: 'Photos', value: '31'),
+            child: _SummaryItem(label: 'Photos', value: totalPhotos),
           ),
         ],
       ),
@@ -162,13 +224,17 @@ class _JournalEntry {
   final String date;
   final String location;
   final String duration;
+  final int durationSeconds;
   final int photoCount;
+  final List<String> photoPaths;
 
   const _JournalEntry({
     required this.date,
     required this.location,
     required this.duration,
+    required this.durationSeconds,
     required this.photoCount,
+    required this.photoPaths,
   });
 }
 
@@ -239,32 +305,42 @@ class _JournalCard extends StatelessWidget {
 }
 
 class _PhotoGalleryTab extends StatelessWidget {
-  const _PhotoGalleryTab();
+  final List<String> photoPaths;
+  const _PhotoGalleryTab({required this.photoPaths});
 
   @override
   Widget build(BuildContext context) {
-    // Placeholder count representing photos fetched from Firestore/Storage.
-    const int placeholderPhotoCount = 9;
+    if (photoPaths.isEmpty) {
+      return const Center(
+        child: Text('No photos captured yet.', style: TextStyle(color: AppColors.textSecondary)),
+      );
+    }
 
     return GridView.builder(
       padding: const EdgeInsets.all(20),
-      itemCount: placeholderPhotoCount,
+      itemCount: photoPaths.length,
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: 3,
         crossAxisSpacing: 10,
         mainAxisSpacing: 10,
       ),
       itemBuilder: (context, index) {
+        final path = photoPaths[index];
+        final fileExists = File(path).existsSync();
+
         return Container(
           decoration: BoxDecoration(
             color: AppColors.sage.withOpacity(0.5),
             borderRadius: BorderRadius.circular(12),
           ),
-          child: const Icon(
-            Icons.image_outlined,
-            color: AppColors.forest,
-            size: 26,
-          ),
+          clipBehavior: Clip.antiAlias,
+          child: fileExists
+              ? Image.file(File(path), fit: BoxFit.cover)
+              : const Icon(
+                  Icons.image_outlined,
+                  color: AppColors.forest,
+                  size: 26,
+                ),
         );
       },
     );

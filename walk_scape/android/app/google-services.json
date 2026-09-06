@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "108099823212",
+    "project_id": "walkscape-76f4a",
+    "storage_bucket": "walkscape-76f4a.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:108099823212:android:3e331fb87100641e0e9a49",
+        "android_client_info": {
+          "package_name": "com.example.walk_scape"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAapRwjt3o2t7DXofFEMKXAfqNHC9ghRJ4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
