@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_colors.dart';
+import '../widgets/logout_button.dart';
 
 /// Mindfulness Journal Page
 /// Shows the user's walk history and mindfulness-checkpoint photo gallery,
@@ -37,10 +38,7 @@ class MindfulnessJournalPage extends StatelessWidget {
         appBar: AppBar(
           title: const Text('Mindfulness Journal'),
           actions: [
-            IconButton(
-              icon: const Icon(Icons.logout, color: AppColors.forest),
-              onPressed: () {},
-            ),
+            const LogoutButton(),
           ],
           bottom: const TabBar(
             labelColor: AppColors.forest,

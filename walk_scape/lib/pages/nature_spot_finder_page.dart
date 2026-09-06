@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_colors.dart';
+import '../widgets/logout_button.dart';
 
 /// Nature Spot Finder Page
 /// Shows nearby green spaces/parks pulled from OpenTripMap based on GPS.
@@ -52,6 +53,7 @@ class NatureSpotFinderPage extends StatelessWidget {
             icon: const Icon(Icons.tune, color: AppColors.forest),
             onPressed: () {},
           ),
+          const LogoutButton(),
         ],
       ),
       body: Column(
