@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../app_colors.dart';
+import '../services/auth_service.dart';
 
-/// Login / Register Page
-/// Entry point for user authentication via Firebase Auth (UI only).
+// entry login page
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
 
@@ -11,242 +11,234 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  bool _isLoginMode = true; // toggles between Login and Register UI
+  bool _isLoginMode = true;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _authenticate() async {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      _showMessage('Please enter your email and password.');
+      return;
+    }
+
+    if (!_isLoginMode &&
+        _passwordController.text != _confirmPasswordController.text) {
+      _showMessage('Passwords do not match.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final error = _isLoginMode
+        ? await _authService.signIn(
+            _emailController.text,
+            _passwordController.text,
+          )
+        : await _authService.signUp(
+            _emailController.text,
+            _passwordController.text,
+          );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) _showMessage(error);
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    final error = await _authService.signInWithGoogle();
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) _showMessage(error);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.background,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              const SizedBox(height: 20),
-              _buildLogo(),
-              const SizedBox(height: 16),
-              Text(
-                'WalkScape',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 30,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.forest,
-                  letterSpacing: 0.5,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'เดินผ่อนคลาย เติมพลังใจ ท่ามกลางธรรมชาติ',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: AppColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 40),
-
-              // Mode toggle: Login / Register
-              _buildModeToggle(),
-              const SizedBox(height: 28),
-
-              // Email field
-              const _FieldLabel(text: 'Email'),
-              const SizedBox(height: 8),
-              const TextField(
-                keyboardType: TextInputType.emailAddress,
-                decoration: InputDecoration(
-                  hintText: 'you@example.com',
-                  prefixIcon: Icon(Icons.mail_outline, color: AppColors.leaf),
-                ),
-              ),
-              const SizedBox(height: 18),
-
-              // Password field
-              const _FieldLabel(text: 'Password'),
-              const SizedBox(height: 8),
-              TextField(
-                obscureText: _obscurePassword,
-                decoration: InputDecoration(
-                  hintText: '••••••••',
-                  prefixIcon:
-                      const Icon(Icons.lock_outline, color: AppColors.leaf),
-                  suffixIcon: IconButton(
-                    icon: Icon(
-                      _obscurePassword
-                          ? Icons.visibility_off_outlined
-                          : Icons.visibility_outlined,
-                      color: AppColors.textSecondary,
-                    ),
-                    onPressed: () {
-                      setState(() => _obscurePassword = !_obscurePassword);
-                    },
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            return SingleChildScrollView(
+              child: ConstrainedBox(
+                constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 28,
+                    vertical: 40,
                   ),
-                ),
-              ),
-
-              // Confirm password (Register mode only)
-              if (!_isLoginMode) ...[
-                const SizedBox(height: 18),
-                const _FieldLabel(text: 'Confirm Password'),
-                const SizedBox(height: 8),
-                TextField(
-                  obscureText: _obscurePassword,
-                  decoration: const InputDecoration(
-                    hintText: '••••••••',
-                    prefixIcon:
-                        Icon(Icons.lock_outline, color: AppColors.leaf),
-                  ),
-                ),
-              ],
-
-              if (_isLoginMode) ...[
-                const SizedBox(height: 10),
-                Align(
-                  alignment: Alignment.centerRight,
-                  child: TextButton(
-                    onPressed: () {},
-                    child: const Text(
-                      'Forgot password?',
-                      style: TextStyle(color: AppColors.textSecondary),
-                    ),
-                  ),
-                ),
-              ],
-
-              const SizedBox(height: 12),
-              ElevatedButton(
-                onPressed: () {},
-                child: Text(_isLoginMode ? 'Login' : 'Register'),
-              ),
-              const SizedBox(height: 14),
-
-              Row(
-                children: [
-                  Expanded(
-                      child: Divider(color: AppColors.sage, thickness: 1)),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 10),
-                    child: Text('or',
-                        style: TextStyle(color: AppColors.textSecondary)),
-                  ),
-                  Expanded(
-                      child: Divider(color: AppColors.sage, thickness: 1)),
-                ],
-              ),
-              const SizedBox(height: 14),
-
-              OutlinedButton.icon(
-                onPressed: () {},
-                icon: const Icon(Icons.g_mobiledata, size: 26),
-                label: const Text('Continue with Google'),
-              ),
-
-              const SizedBox(height: 24),
-              Center(
-                child: RichText(
-                  text: TextSpan(
-                    style: const TextStyle(color: AppColors.textSecondary),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      TextSpan(
-                        text: _isLoginMode
-                            ? "Don't have an account? "
-                            : 'Already have an account? ',
-                      ),
-                      TextSpan(
-                        text: _isLoginMode ? 'Register' : 'Login',
-                        style: const TextStyle(
+                      Text(
+                        'WalkScape',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontSize: 30,
+                          fontWeight: FontWeight.w800,
                           color: AppColors.forest,
-                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
                         ),
-                        recognizer: null,
+                      ),
+                      const SizedBox(height: 40),
+
+                      // Email field
+                      const _FieldLabel(text: 'Email'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _emailController,
+                        keyboardType: TextInputType.emailAddress,
+                        decoration: InputDecoration(
+                          hintText: 'you@example.com',
+                          prefixIcon: Icon(
+                            Icons.mail_outline,
+                            color: AppColors.leaf,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 18),
+
+                      // Password field
+                      const _FieldLabel(text: 'Password'),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: _passwordController,
+                        obscureText: _obscurePassword,
+                        decoration: InputDecoration(
+                          hintText: '••••••••',
+                          prefixIcon: const Icon(
+                            Icons.lock_outline,
+                            color: AppColors.leaf,
+                          ),
+                          suffixIcon: IconButton(
+                            icon: Icon(
+                              _obscurePassword
+                                  ? Icons.visibility_off_outlined
+                                  : Icons.visibility_outlined,
+                              color: AppColors.textSecondary,
+                            ),
+                            onPressed: () {
+                              setState(
+                                () => _obscurePassword = !_obscurePassword,
+                              );
+                            },
+                          ),
+                        ),
+                      ),
+
+                      // Confirm password (Register mode only)
+                      if (!_isLoginMode) ...[
+                        const SizedBox(height: 18),
+                        const _FieldLabel(text: 'Confirm Password'),
+                        const SizedBox(height: 8),
+                        TextField(
+                          controller: _confirmPasswordController,
+                          obscureText: _obscurePassword,
+                          decoration: const InputDecoration(
+                            hintText: '••••••••',
+                            prefixIcon: Icon(
+                              Icons.lock_outline,
+                              color: AppColors.leaf,
+                            ),
+                          ),
+                        ),
+                      ],
+
+                      const SizedBox(height: 12),
+                      ElevatedButton(
+                        onPressed: _isLoading ? null : _authenticate,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(_isLoginMode ? 'Log In' : 'Sign Up'),
+                      ),
+                      const SizedBox(height: 14),
+
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Divider(color: AppColors.sage, thickness: 1),
+                          ),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 10),
+                            child: Text(
+                              'or',
+                              style: TextStyle(color: AppColors.textSecondary),
+                            ),
+                          ),
+                          Expanded(
+                            child: Divider(color: AppColors.sage, thickness: 1),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+
+                      OutlinedButton.icon(
+                        onPressed: _isLoading ? null : _signInWithGoogle,
+                        icon: const Icon(Icons.g_mobiledata, size: 26),
+                        label: const Text('Continue with Google'),
+                      ),
+
+                      const SizedBox(height: 24),
+                      Center(
+                        child: TextButton(
+                          onPressed: () {
+                            setState(() => _isLoginMode = !_isLoginMode);
+                          },
+                          child: RichText(
+                            text: TextSpan(
+                              style: const TextStyle(
+                                color: AppColors.textSecondary,
+                              ),
+                              children: [
+                                TextSpan(
+                                  text: _isLoginMode
+                                      ? "Don't have an account? "
+                                      : 'Already have an account? ',
+                                ),
+                                TextSpan(
+                                  text: _isLoginMode ? 'Register' : 'Login',
+                                  style: const TextStyle(
+                                    color: AppColors.forest,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Center(
-                child: TextButton(
-                  onPressed: () {
-                    setState(() => _isLoginMode = !_isLoginMode);
-                  },
-                  child: Text(
-                    _isLoginMode ? 'Switch to Register' : 'Switch to Login',
-                    style: const TextStyle(
-                      color: AppColors.leaf,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLogo() {
-    return Center(
-      child: Container(
-        width: 84,
-        height: 84,
-        decoration: BoxDecoration(
-          color: AppColors.leaf,
-          borderRadius: BorderRadius.circular(24),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.leaf.withOpacity(0.35),
-              blurRadius: 20,
-              offset: const Offset(0, 10),
-            ),
-          ],
-        ),
-        child: const Icon(Icons.park_rounded, color: Colors.white, size: 42),
-      ),
-    );
-  }
-
-  Widget _buildModeToggle() {
-    return Container(
-      padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.sage.withOpacity(0.35),
-        borderRadius: BorderRadius.circular(14),
-      ),
-      child: Row(
-        children: [
-          _buildToggleButton('Login', _isLoginMode),
-          _buildToggleButton('Register', !_isLoginMode),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildToggleButton(String label, bool selected) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: () {
-          setState(() => _isLoginMode = label == 'Login');
-        },
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(vertical: 10),
-          decoration: BoxDecoration(
-            color: selected ? AppColors.leaf : Colors.transparent,
-            borderRadius: BorderRadius.circular(10),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            label,
-            style: TextStyle(
-              color: selected ? Colors.white : AppColors.forest,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
+            );
+          },
         ),
       ),
     );

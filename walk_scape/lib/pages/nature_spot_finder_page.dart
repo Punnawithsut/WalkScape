@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import '../app_colors.dart';
 import 'active_walk_tracker_page.dart';
+import '../widgets/logout_button.dart';
 
 /// Nature Spot Finder Page
 /// Shows nearby green spaces/parks pulled from OpenTripMap based on GPS.
@@ -103,6 +104,7 @@ class _NatureSpotFinderPageState extends State<NatureSpotFinderPage> {
             icon: const Icon(Icons.refresh, color: AppColors.forest),
             onPressed: _fetchNearbySpots,
           ),
+          const LogoutButton(),
         ],
       ),
       body: Column(

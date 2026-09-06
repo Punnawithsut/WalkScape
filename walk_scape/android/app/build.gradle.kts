@@ -6,16 +6,6 @@ plugins {
     id("com.google.gms.google-services")
 }
 
-dependencies {
-  // Import the Firebase BoM
-  implementation(platform("com.google.firebase:firebase-bom:34.18.0"))
-
-  // TODO: Add the dependencies for Firebase products you want to use
-  // When using the BoM, don't specify versions in Firebase dependencies
-  // https://firebase.google.com/docs/android/setup#available-libraries
-
-}
-
 android {
     namespace = "com.example.walk_scape"
     compileSdk = flutter.compileSdkVersion

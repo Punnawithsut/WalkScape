@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import '../app_colors.dart';
+import '../widgets/logout_button.dart';
 
 /// Active Walk Tracker Page
 /// Tracks live duration, GPS distance, camera photos, and saves session to Firestore.
@@ -138,6 +139,7 @@ class _ActiveWalkTrackerPageState extends State<ActiveWalkTrackerPage> {
           icon: const Icon(Icons.arrow_back, color: AppColors.forest),
           onPressed: () => Navigator.pop(context),
         ),
+        actions: const [LogoutButton()],
       ),
       body: SafeArea(
         child: Padding(

@@ -1,26 +1,44 @@
 {
   "project_info": {
-    "project_number": "108099823212",
-    "project_id": "walkscape-76f4a",
-    "storage_bucket": "walkscape-76f4a.firebasestorage.app"
+    "project_number": "515222039692",
+    "project_id": "walkscape-d310e",
+    "storage_bucket": "walkscape-d310e.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:108099823212:android:3e331fb87100641e0e9a49",
+        "mobilesdk_app_id": "1:515222039692:android:cd99f4f6ab04b9032e1fa9",
         "android_client_info": {
           "package_name": "com.example.walk_scape"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "515222039692-ltqqtjbafvp09n4898uba0rvq867rrtj.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.example.walk_scape",
+            "certificate_hash": "37021abc16858746cc7cf6172deb1a3480d9aa24"
+          }
+        },
+        {
+          "client_id": "515222039692-82314ijahlrhqanuodslfb37tg1j5hc3.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
-          "current_key": "AIzaSyAapRwjt3o2t7DXofFEMKXAfqNHC9ghRJ4"
+          "current_key": "AIzaSyB58kIzsGiQJm-u4LK9FQL7dQ8gSq8w3sU"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "515222039692-82314ijahlrhqanuodslfb37tg1j5hc3.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }
