@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_colors.dart';
+import '../widgets/logout_button.dart';
 
 /// Active Walk Tracker Page
 /// Shown while the user is actively on a mindful walk.
@@ -17,6 +18,7 @@ class ActiveWalkTrackerPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back, color: AppColors.forest),
           onPressed: () {},
         ),
+        actions: const [LogoutButton()],
       ),
       body: SafeArea(
         child: Padding(

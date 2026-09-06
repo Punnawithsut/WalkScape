@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../app_colors.dart';
+import '../services/auth_service.dart';
 
 // entry login page
 class LoginPage extends StatefulWidget {
@@ -12,6 +13,63 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   bool _isLoginMode = true;
   bool _obscurePassword = true;
+  bool _isLoading = false;
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+  final _authService = AuthService();
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _authenticate() async {
+    if (_emailController.text.trim().isEmpty ||
+        _passwordController.text.isEmpty) {
+      _showMessage('Please enter your email and password.');
+      return;
+    }
+
+    if (!_isLoginMode &&
+        _passwordController.text != _confirmPasswordController.text) {
+      _showMessage('Passwords do not match.');
+      return;
+    }
+
+    setState(() => _isLoading = true);
+    final error = _isLoginMode
+        ? await _authService.signIn(
+            _emailController.text,
+            _passwordController.text,
+          )
+        : await _authService.signUp(
+            _emailController.text,
+            _passwordController.text,
+          );
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) _showMessage(error);
+  }
+
+  Future<void> _signInWithGoogle() async {
+    setState(() => _isLoading = true);
+    final error = await _authService.signInWithGoogle();
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+    if (error != null) _showMessage(error);
+  }
+
+  void _showMessage(String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,7 +105,8 @@ class _LoginPageState extends State<LoginPage> {
                       // Email field
                       const _FieldLabel(text: 'Email'),
                       const SizedBox(height: 8),
-                      const TextField(
+                      TextField(
+                        controller: _emailController,
                         keyboardType: TextInputType.emailAddress,
                         decoration: InputDecoration(
                           hintText: 'you@example.com',
@@ -63,6 +122,7 @@ class _LoginPageState extends State<LoginPage> {
                       const _FieldLabel(text: 'Password'),
                       const SizedBox(height: 8),
                       TextField(
+                        controller: _passwordController,
                         obscureText: _obscurePassword,
                         decoration: InputDecoration(
                           hintText: '••••••••',
@@ -92,6 +152,7 @@ class _LoginPageState extends State<LoginPage> {
                         const _FieldLabel(text: 'Confirm Password'),
                         const SizedBox(height: 8),
                         TextField(
+                          controller: _confirmPasswordController,
                           obscureText: _obscurePassword,
                           decoration: const InputDecoration(
                             hintText: '••••••••',
@@ -105,8 +166,16 @@ class _LoginPageState extends State<LoginPage> {
 
                       const SizedBox(height: 12),
                       ElevatedButton(
-                        onPressed: () {},
-                        child: Text(_isLoginMode ? 'Login' : 'Register'),
+                        onPressed: _isLoading ? null : _authenticate,
+                        child: _isLoading
+                            ? const SizedBox(
+                                height: 20,
+                                width: 20,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : Text(_isLoginMode ? 'Log In' : 'Sign Up'),
                       ),
                       const SizedBox(height: 14),
 
@@ -130,7 +199,7 @@ class _LoginPageState extends State<LoginPage> {
                       const SizedBox(height: 14),
 
                       OutlinedButton.icon(
-                        onPressed: () {},
+                        onPressed: _isLoading ? null : _signInWithGoogle,
                         icon: const Icon(Icons.g_mobiledata, size: 26),
                         label: const Text('Continue with Google'),
                       ),
